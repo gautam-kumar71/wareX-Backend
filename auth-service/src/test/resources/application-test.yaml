@@ -1,0 +1,7 @@
+spring:
+  main:
+    banner-mode: off
+
+app:
+  seed-default-users:
+    enabled: false

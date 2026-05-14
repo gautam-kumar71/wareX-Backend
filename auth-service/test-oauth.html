@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Google OAuth2 Test</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body { font-family: sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
+        #response { background: #1e1e1e; color: #00ff00; padding: 20px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <h2>Test Google Login</h2>
+    <p>Click the button below to sign in. The Google ID Token will be sent to <code>http://localhost:8081/api/v1/auth/oauth2/google</code>.</p>
+    
+    <!-- Google Identity Services configuration -->
+    <div id="g_id_onload"
+         data-client_id="1088186009987-kiiaeng9ombpmg7gcot0viaruqgjfn2f.apps.googleusercontent.com"
+         data-context="signin"
+         data-ux_mode="popup"
+         data-callback="handleCredentialResponse"
+         data-auto_prompt="false">
+    </div>
+
+    <!-- The Google Sign-In Button -->
+    <div class="g_id_signin"
+         data-type="standard"
+         data-shape="rectangular"
+         data-theme="outline"
+         data-text="sign_in_with"
+         data-size="large"
+         data-logo_alignment="left">
+    </div>
+
+    <h3 style="margin-top: 40px;">Backend Response:</h3>
+    <pre id="response">Waiting for login...</pre>
+
+    <script>
+        function handleCredentialResponse(response) {
+            document.getElementById('response').innerText = "Google token received! Sending to backend...\n\nToken: " + response.credential.substring(0, 50) + "...";
+            
+            fetch("http://localhost:8081/api/v1/auth/oauth2/google", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ idToken: response.credential })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('response').innerText = JSON.stringify(data, null, 2);
+            })
+            .catch(err => {
+                document.getElementById('response').innerText = "Network Error (is the backend running?)\n\n" + err;
+            });
+        }
+    </script>
+</body>
+</html>
