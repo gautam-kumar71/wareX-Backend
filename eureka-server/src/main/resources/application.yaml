@@ -1,0 +1,56 @@
+server:
+  port: ${SERVER_PORT:8761}
+
+spring:
+  application:
+    name: eureka-server
+
+  # ── Basic Auth for Eureka Dashboard + client registration ─────────────────
+  # All microservices must supply these credentials in their eureka.client config
+  security:
+    user:
+      name: ${EUREKA_USERNAME:eureka}
+      password: ${EUREKA_PASSWORD:eureka-secret}
+
+eureka:
+  instance:
+    hostname: ${EUREKA_HOSTNAME:localhost}
+
+  client:
+    # This IS the Eureka Server — it does NOT register with itself
+    register-with-eureka: false
+    # This IS the Eureka Server — it does NOT fetch registry from itself
+    fetch-registry: false
+    service-url:
+      defaultZone: http://${EUREKA_USERNAME:eureka}:${EUREKA_PASSWORD:eureka-secret}@${EUREKA_HOSTNAME:localhost}:${SERVER_PORT:8761}/eureka/
+
+  server:
+    # Wait this long after startup before evicting instances
+    # Prevents mass evictions during rolling restarts
+    wait-time-in-ms-when-sync-empty: 0
+    # How long (ms) without a heartbeat before Eureka considers instance DOWN
+    eviction-interval-timer-in-ms: 5000
+    # In dev: disable self-preservation so stale instances are removed quickly
+    # In production: set to true to tolerate network partitions
+    enable-self-preservation: ${EUREKA_SELF_PRESERVATION:false}
+    # Threshold below which self-preservation kicks in (production only)
+    renewal-percent-threshold: 0.85
+
+# ── Actuator ──────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+# ── Logging ───────────────────────────────────────────────────────────────
+logging:
+  level:
+    com.netflix.eureka: INFO
+    com.netflix.discovery: INFO
+    org.springframework.security: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

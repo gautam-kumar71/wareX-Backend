@@ -1,0 +1,91 @@
+@startuml
+title Core Procurement and Inventory Operations
+
+actor PurchaseOfficer
+actor WarehouseStaff
+participant Frontend
+participant SupplierService
+participant PurchaseOrderService as PO
+participant InvoiceService
+participant WarehouseService
+participant StockService
+participant PaymentService
+queue Kafka
+participant StockMovementService
+participant AlertService
+participant ReportService
+participant Razorpay
+participant MailService
+
+== Supplier Lifecycle ==
+PurchaseOfficer -> Frontend : Create / update supplier
+Frontend -> SupplierService : create(req) / update(id, req)
+SupplierService --> Frontend : SupplierResponse
+
+PurchaseOfficer -> Frontend : Deactivate supplier
+Frontend -> SupplierService : getDeactivationCheck(id)
+SupplierService -> PO : Feign deactivation check
+PO --> SupplierService : blocking orders/invoices or safe
+alt Safe to deactivate
+  Frontend -> SupplierService : deactivate(id)
+  SupplierService -> MailService : send suspension notice
+  SupplierService --> Frontend : deactivated
+else Blocked
+  SupplierService --> Frontend : cannot deactivate
+end
+
+== Purchase Order Create / Approve / Receive ==
+PurchaseOfficer -> Frontend : Create purchase order
+Frontend -> PO : createPurchaseOrder(req)
+PO -> SupplierService : Feign validate supplier
+SupplierService --> PO : supplier active
+PO -> WarehouseService : Feign validate warehouse/capacity
+WarehouseService --> PO : warehouse active
+PO -> PO : save DRAFT PO + lines
+PO -> Kafka : ORDER_CREATED
+
+PurchaseOfficer -> Frontend : Approve order
+Frontend -> PO : approveOrder(id)
+PO -> PO : SUBMITTED -> APPROVED
+PO -> InvoiceService : generate invoice
+InvoiceService --> PO : invoice created
+PO -> Kafka : ORDER_APPROVED
+
+PurchaseOfficer -> Frontend : Receive stock
+Frontend -> PO : receiveStock(orderId, productId, qty)
+PO -> WarehouseService : Feign receive stock
+WarehouseService -> StockService : update stock level
+StockService -> Kafka : STOCK_EVENT(RECEIPT)
+WarehouseService --> PO : success
+PO -> PO : update receivedQty
+PO -> PO : APPROVED -> PARTIALLY_RECEIVED / RECEIVED
+PO -> Kafka : ORDER_PARTIALLY_RECEIVED / ORDER_RECEIVED
+
+== Warehouse Stock Operations ==
+WarehouseStaff -> Frontend : Adjust / reserve / release / transfer stock
+Frontend -> StockService : adjustStock() / reserveStock() / releaseReservation() / transferStock()
+StockService -> StockService : validate quantity, capacity, thresholds
+StockService -> Kafka : publish stock event(s)
+
+== Payment ==
+PurchaseOfficer -> Frontend : Initiate payment
+Frontend -> PaymentService : createRazorpayOrder(request)
+PaymentService -> PO : Feign get invoice by number
+PO --> PaymentService : invoice details
+PaymentService -> Razorpay : create order
+Razorpay --> PaymentService : razorpayOrderId
+PaymentService --> Frontend : order payload
+
+PurchaseOfficer -> Frontend : Verify payment
+Frontend -> PaymentService : verifyPayment(request)
+PaymentService -> PaymentService : verify signature
+PaymentService -> PO : Feign markInvoicePaid(invoiceNumber, txnId)
+PO --> PaymentService : invoice updated
+PaymentService -> Kafka : PAYMENT_PROCESSED
+PaymentService --> Frontend : payment success
+
+== Event Fan-out ==
+Kafka --> StockMovementService : audit projection
+Kafka --> AlertService : alert generation
+Kafka --> ReportService : reporting projection
+@enduml
