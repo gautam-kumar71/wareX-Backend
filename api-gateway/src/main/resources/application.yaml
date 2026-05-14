@@ -1,0 +1,373 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+docs:
+  base-url: ${DOCS_BASE_URL:http://localhost:8080}
+
+spring:
+  application:
+    name: api-gateway
+  config:
+    import: optional:file:.env[.properties]
+
+  # ── Redis (for rate limiting) ──────────────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+  # ── Cloud Gateway Routes ───────────────────────────────────────────────────
+  # lb:// prefix tells the gateway to use Eureka load-balancer to resolve
+  # the service name to an actual host:port.
+  cloud:
+    gateway:
+      # Discover routes automatically from Eureka (optional, we also define manually)
+      discovery:
+        locator:
+          enabled: false        # manual routes give better control
+          lower-case-service-id: true
+
+      # Default filters applied to ALL routes
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+        - name: RequestRateLimiter
+          args:
+            redis-rate-limiter.replenishRate: 20      # 20 requests/sec steady state
+            redis-rate-limiter.burstCapacity: 40      # allow bursts up to 40
+            redis-rate-limiter.requestedTokens: 1
+            key-resolver: "#{@ipKeyResolver}"
+
+      routes:
+
+        # ── Aggregated service docs via gateway ──────────────────────────────
+        - id: docs-auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/service-docs/auth-service/api-docs
+          filters:
+            - SetPath=/api-docs
+
+        - id: docs-warehouse-service
+          uri: lb://warehouse-service
+          predicates:
+            - Path=/service-docs/warehouse-service/api-docs
+          filters:
+            - SetPath=/api-docs
+
+        - id: docs-product-service
+          uri: lb://product-service
+          predicates:
+            - Path=/service-docs/product-service/api-docs
+          filters:
+            - SetPath=/api-docs
+
+        - id: docs-purchase-order-service
+          uri: lb://purchase-order-service
+          predicates:
+            - Path=/service-docs/purchase-order-service/api-docs
+          filters:
+            - SetPath=/api-docs
+
+        - id: docs-supplier-service
+          uri: lb://supplier-service
+          predicates:
+            - Path=/service-docs/supplier-service/api-docs
+          filters:
+            - SetPath=/api-docs
+
+        - id: docs-stock-movement-service
+          uri: lb://stock-movement-service
+          predicates:
+            - Path=/service-docs/stock-movement-service/api-docs
+          filters:
+            - SetPath=/api-docs
+
+        - id: docs-payment-service
+          uri: lb://payment-service
+          predicates:
+            - Path=/service-docs/payment-service/api-docs
+          filters:
+            - SetPath=/api-docs
+
+        - id: docs-alert-service
+          uri: lb://alert-service
+          predicates:
+            - Path=/service-docs/alert-service/api-docs
+          filters:
+            - SetPath=/api-docs
+
+        - id: docs-report-service
+          uri: lb://report-service
+          predicates:
+            - Path=/service-docs/report-service/api-docs
+          filters:
+            - SetPath=/api-docs
+
+        # ── Auth Service ─────────────────────────────────────────────────────
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/v1/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: auth-service-cb
+                fallbackUri: forward:/fallback/auth
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE
+                methods: GET,POST
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+
+        # ── Warehouse Service ─────────────────────────────────────────────────
+        - id: warehouse-service-warehouses
+          uri: lb://warehouse-service
+          predicates:
+            - Path=/api/v1/warehouses/**
+          filters:
+            - JwtAuthenticationFilter        # custom filter — validates JWT, injects headers
+            - name: CircuitBreaker
+              args:
+                name: warehouse-service-cb
+                fallbackUri: forward:/fallback/warehouse
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE
+                methods: GET
+
+        - id: warehouse-service-stock
+          uri: lb://warehouse-service
+          predicates:
+            - Path=/api/v1/stock/**
+          filters:
+            - JwtAuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: warehouse-service-cb
+                fallbackUri: forward:/fallback/warehouse
+
+        # ── Product Service ───────────────────────────────────────────────────
+        - id: product-service
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/products, /api/v1/products/**
+          filters:
+            - JwtAuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: product-service-cb
+                fallbackUri: forward:/fallback/product
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE
+                methods: GET
+
+        # ── Purchase Order Service ────────────────────────────────────────────
+        - id: purchase-order-service
+          uri: lb://purchase-order-service
+          predicates:
+            - Path=/api/v1/purchase-orders/**, /api/v1/invoices/**
+          filters:
+            - JwtAuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: purchase-order-cb
+                fallbackUri: forward:/fallback/purchase-order
+
+        # ── Supplier Service ──────────────────────────────────────────────────
+        - id: supplier-service
+          uri: lb://supplier-service
+          predicates:
+            - Path=/api/v1/suppliers/**
+          filters:
+            - JwtAuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: supplier-service-cb
+                fallbackUri: forward:/fallback/supplier
+
+        # ── Payment Service ───────────────────────────────────────────────────
+        - id: payment-service
+          uri: lb://payment-service
+          predicates:
+            - Path=/api/v1/payments/**
+          filters:
+            - JwtAuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: payment-service-cb
+                fallbackUri: forward:/fallback/payment
+
+        # ── Alert Service ─────────────────────────────────────────────────────
+        - id: alert-service
+          uri: lb://alert-service
+          predicates:
+            - Path=/api/v1/alerts/**
+          filters:
+            - JwtAuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: alert-service-cb
+                fallbackUri: forward:/fallback/alert
+
+        # ── Report Service ────────────────────────────────────────────────────
+        - id: report-service
+          uri: lb://report-service
+          predicates:
+            - Path=/api/v1/reports/**
+          filters:
+            - JwtAuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: report-service-cb
+                fallbackUri: forward:/fallback/report
+
+        # ── Stock Movement Service ────────────────────────────────────────────
+        - id: stock-movement-service
+          uri: lb://stock-movement-service
+          predicates:
+            - Path=/api/v1/stock-movements/**
+          filters:
+            - JwtAuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: stock-movement-service-cb
+                fallbackUri: forward:/fallback/stock-movement
+
+      # ── CORS ──────────────────────────────────────────────────────────────
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - ${FRONTEND_URL:http://localhost:4200}
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+              - HEAD
+            allowedHeaders:
+              - Authorization
+              - Content-Type
+              - X-Requested-With
+              - Accept
+              - Origin
+              - Access-Control-Request-Method
+              - Access-Control-Request-Headers
+            allowCredentials: true
+            maxAge: 3600
+
+# ── Eureka Client ─────────────────────────────────────────────────────────
+eureka:
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    registry-fetch-interval-seconds: 5
+    service-url:
+      defaultZone: http://${EUREKA_USERNAME:eureka}:${EUREKA_PASSWORD:eureka-secret}@${EUREKA_HOST:localhost}:${EUREKA_PORT:8761}/eureka/
+
+# ── JWT ───────────────────────────────────────────────────────────────────
+jwt:
+  secret: ${JWT_SECRET}
+
+
+# ── Resilience4j Circuit Breaker ─────────────────────────────────────────
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 5s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+    instances:
+      auth-service-cb:
+        baseConfig: default
+      warehouse-service-cb:
+        baseConfig: default
+      product-service-cb:
+        baseConfig: default
+      purchase-order-cb:
+        baseConfig: default
+      payment-service-cb:
+        baseConfig: default
+        waitDurationInOpenState: 10s   # Payment circuit stays open longer
+      supplier-service-cb:
+        baseConfig: default
+      alert-service-cb:
+        baseConfig: default
+      report-service-cb:
+        baseConfig: default
+      stock-movement-service-cb:
+        baseConfig: default
+
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 5s
+    instances:
+      report-service-cb:
+        timeoutDuration: 30s           # Reports can take longer
+
+# ── Actuator ──────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+
+# ── Logging ───────────────────────────────────────────────────────────────
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger
+    urls:
+      - name: Auth Service
+        url: /service-docs/auth-service/api-docs
+      - name: Warehouse Service
+        url: /service-docs/warehouse-service/api-docs
+      - name: Product Service
+        url: /service-docs/product-service/api-docs
+      - name: Purchase Order Service
+        url: /service-docs/purchase-order-service/api-docs
+      - name: Supplier Service
+        url: /service-docs/supplier-service/api-docs
+      - name: Stock Movement Service
+        url: /service-docs/stock-movement-service/api-docs
+      - name: Payment Service
+        url: /service-docs/payment-service/api-docs
+      - name: Alert Service
+        url: /service-docs/alert-service/api-docs
+      - name: Report Service
+        url: /service-docs/report-service/api-docs
+    org.springframework.security: INFO
+    com.inventory.gateway: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

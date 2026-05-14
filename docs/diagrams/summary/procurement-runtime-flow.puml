@@ -1,0 +1,39 @@
+@startuml
+title Procurement Runtime Flow
+
+actor PurchaseOfficer
+participant Frontend
+participant PO as "Purchase Order Service"
+participant Supplier as "Supplier Service"
+participant Warehouse as "Warehouse Service"
+participant Payment as "Payment Service"
+queue Kafka
+participant Audit as "Stock Movement Service"
+participant Reporting as "Report Service"
+
+PurchaseOfficer -> Frontend : Create purchase order
+Frontend -> PO : createPurchaseOrder(req)
+PO -> Supplier : Feign validate supplier
+PO -> Warehouse : Feign validate warehouse
+PO -> PO : save DRAFT order
+PO -> Kafka : ORDER_CREATED
+
+PurchaseOfficer -> Frontend : Approve purchase order
+Frontend -> PO : approveOrder(id)
+PO -> PO : create invoice
+PO -> Kafka : ORDER_APPROVED
+
+PurchaseOfficer -> Frontend : Receive goods
+Frontend -> PO : receiveStock(orderId, productId, qty)
+PO -> Warehouse : Feign receive stock
+Warehouse -> Kafka : STOCK_EVENT(RECEIPT)
+PO -> Kafka : ORDER_RECEIVED / PARTIALLY_RECEIVED
+
+PurchaseOfficer -> Frontend : Pay invoice
+Frontend -> Payment : verifyPayment(req)
+Payment -> PO : Feign validate invoice / mark paid
+Payment -> Kafka : PAYMENT_PROCESSED
+
+Kafka --> Audit : persist audit trail
+Kafka --> Reporting : update reporting views
+@enduml

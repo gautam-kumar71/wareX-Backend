@@ -1,0 +1,14 @@
+#!/bin/sh
+
+message_file="$1"
+message="$(cat "$message_file")"
+
+case "$message" in
+  "[Gautam] : added "*)
+    exit 0
+    ;;
+  *)
+    echo "Commit message must start with: [Gautam] : added <service-name>"
+    exit 1
+    ;;
+esac

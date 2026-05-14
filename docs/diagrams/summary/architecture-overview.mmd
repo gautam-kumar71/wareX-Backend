@@ -1,0 +1,62 @@
+flowchart TB
+    FE[Frontend]
+    GW[API Gateway]
+
+    subgraph Core["Core Business Services"]
+        direction LR
+        AUTH[Auth]
+        PROD[Product]
+        WH[Warehouse]
+        SUP[Supplier]
+        PO[Purchase Order]
+        PAY[Payment]
+    end
+
+    subgraph Async["Async Projections"]
+        direction LR
+        SM[Stock Movement]
+        ALT[Alert]
+        REP[Report]
+    end
+
+    KAFKA[(Kafka)]
+    DBS[(Service-owned DBs)]
+    REDIS[(Redis)]
+
+    GOOGLE[Google OAuth2]
+    RAZORPAY[Razorpay]
+    MAIL[Email]
+
+    FE --> GW
+    GW --> AUTH
+    GW --> PROD
+    GW --> WH
+    GW --> SUP
+    GW --> PO
+    GW --> PAY
+    GW --> SM
+    GW --> ALT
+    GW --> REP
+
+    PO -->|Feign| SUP
+    PO -->|Feign| WH
+    PAY -->|Feign| PO
+    WH -->|Feign| PROD
+
+    WH --> KAFKA
+    PO --> KAFKA
+    PAY --> KAFKA
+
+    KAFKA --> SM
+    KAFKA --> ALT
+    KAFKA --> REP
+
+    AUTH --> DBS
+    PO --> DBS
+    SM --> DBS
+
+    AUTH --> REDIS
+    AUTH --> GOOGLE
+    AUTH --> MAIL
+    SUP --> MAIL
+    PAY --> RAZORPAY

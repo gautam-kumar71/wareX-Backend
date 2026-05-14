@@ -1,0 +1,47 @@
+@startuml
+title Core Lifecycle States
+
+state "Purchase Order" as PO {
+  [*] --> DRAFT
+  DRAFT --> SUBMITTED : submitOrder()
+  SUBMITTED --> APPROVED : approveOrder()
+  APPROVED --> PARTIALLY_RECEIVED : receiveStock(partial)
+  APPROVED --> RECEIVED : receiveStock(full)
+  PARTIALLY_RECEIVED --> PARTIALLY_RECEIVED : receiveStock(partial)
+  PARTIALLY_RECEIVED --> RECEIVED : receiveStock(complete)
+  DRAFT --> CANCELLED : cancelOrder()
+  SUBMITTED --> CANCELLED : cancelOrder()
+  APPROVED --> CANCELLED : cancelOrder()
+  PARTIALLY_RECEIVED --> CANCELLED : cancelOrder()
+  RECEIVED --> [*]
+  CANCELLED --> [*]
+}
+
+--
+
+state "Invoice" as INV {
+  [*] --> PENDING
+  PENDING --> APPROVED : approval / workflow
+  PENDING --> PAID : markInvoicePaid()
+  PENDING --> OVERDUE : due date passed
+  PENDING --> CANCELLED : cancelInvoiceForPurchaseOrder()
+  APPROVED --> PAID : markInvoicePaid()
+  APPROVED --> OVERDUE : due date passed
+  APPROVED --> CANCELLED : cancelInvoiceForPurchaseOrder()
+  OVERDUE --> PAID : late payment
+  PAID --> [*]
+  CANCELLED --> [*]
+}
+
+--
+
+state "Stock Threshold" as STOCK {
+  [*] --> Normal
+  Normal --> LowStock : quantity <= reorderPoint
+  LowStock --> Normal : quantity > reorderPoint
+  Normal --> Overstock : quantity >= maxCapacity
+  Overstock --> Normal : quantity < maxCapacity
+  LowStock --> Overstock : large inbound adjustment
+  Overstock --> LowStock : large outbound adjustment
+}
+@enduml
