@@ -1,0 +1,17 @@
+CREATE DATABASE IF NOT EXISTS auth_db;
+CREATE DATABASE IF NOT EXISTS warehouse_db;
+CREATE DATABASE IF NOT EXISTS supplier_db;
+CREATE DATABASE IF NOT EXISTS purchase_order_db;
+CREATE DATABASE IF NOT EXISTS product_db;
+CREATE DATABASE IF NOT EXISTS stock_movement_db;
+CREATE DATABASE IF NOT EXISTS payment_db;
+CREATE DATABASE IF NOT EXISTS alert_db;
+CREATE DATABASE IF NOT EXISTS report_db;
+
+-- Ensure root can connect from any host
+CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY 'root8804';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+
+-- Grant privileges to the dedicated app user
+GRANT ALL PRIVILEGES ON *.* TO 'inventory_user'@'%';
+FLUSH PRIVILEGES;

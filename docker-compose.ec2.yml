@@ -1,0 +1,388 @@
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: auth_db
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - warex-network
+
+  redis:
+    image: redis:7.0-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - warex-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - warex-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "127.0.0.1:9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '< /dev/tcp/localhost/9092' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - warex-network
+
+  eureka-server:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/eureka-server:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+      EUREKA_HOSTNAME: eureka-server
+      EUREKA_SELF_PRESERVATION: "true"
+    ports:
+      - "127.0.0.1:8761:8761"
+    networks:
+      - warex-network
+
+  auth-service:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/auth-service:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SERVER_PORT: 8081
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: auth_db
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_HOST: eureka-server
+      EUREKA_PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+      FRONTEND_URL: ${FRONTEND_PUBLIC_BASE_URL}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-WareX}
+    networks:
+      - warex-network
+
+  product-service:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/product-service:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: product_db
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_HOST: eureka-server
+      EUREKA_PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+    networks:
+      - warex-network
+
+  warehouse-service:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/warehouse-service:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SERVER_PORT: 8082
+      DB_URL: jdbc:mysql://mysql:3306/warehouse_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      DB_USER: ${DB_USERNAME}
+      DB_PASS: ${DB_PASSWORD}
+      KAFKA_BROKERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_HOST: eureka-server
+      EUREKA_PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+      PRODUCT_SERVICE_URL: http://product-service:8083
+    networks:
+      - warex-network
+
+  supplier-service:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/supplier-service:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SERVER_PORT: 8085
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: supplier_db
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_HOST: eureka-server
+      EUREKA_PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-WareX}
+    networks:
+      - warex-network
+
+  purchase-order-service:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/purchase-order-service:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SERVER_PORT: 8084
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: purchase_order_db
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BROKERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_HOST: eureka-server
+      EUREKA_PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+    networks:
+      - warex-network
+
+  stock-movement-service:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/stock-movement-service:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SERVER_PORT: 8086
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: stock_movement_db
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_HOST: eureka-server
+      EUREKA_PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+      PRODUCT_SERVICE_URL: http://product-service:8083
+    networks:
+      - warex-network
+
+  payment-service:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/payment-service:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SERVER_PORT: 8087
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: payment_db
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_HOST: eureka-server
+      EUREKA_PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+    networks:
+      - warex-network
+
+  alert-service:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/alert-service:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SERVER_PORT: 8088
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: alert_db
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_HOST: eureka-server
+      EUREKA_PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+    networks:
+      - warex-network
+
+  report-service:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/report-service:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SERVER_PORT: 8089
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: report_db
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BROKERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_HOST: eureka-server
+      EUREKA_PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+    networks:
+      - warex-network
+
+  admin-server:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/admin-server:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      eureka-server:
+        condition: service_started
+    environment:
+      SERVER_PORT: 8090
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      EUREKA_HOST: eureka-server
+      EUREKA_PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+    ports:
+      - "127.0.0.1:8090:8090"
+    networks:
+      - warex-network
+
+  api-gateway:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/api-gateway:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SERVER_PORT: 8080
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET}
+      EUREKA_HOST: eureka-server
+      EUREKA_PORT: 8761
+      EUREKA_USERNAME: ${EUREKA_USERNAME}
+      EUREKA_PASSWORD: ${EUREKA_PASSWORD}
+      FRONTEND_URL: ${FRONTEND_PUBLIC_BASE_URL}
+      DOCS_BASE_URL: ${BACKEND_PUBLIC_BASE_URL}
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - warex-network
+
+networks:
+  warex-network:
+    driver: bridge
+
+volumes:
+  mysql_data:

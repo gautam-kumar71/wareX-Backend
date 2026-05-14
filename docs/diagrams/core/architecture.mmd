@@ -1,0 +1,93 @@
+flowchart TB
+    FE[Angular Frontend]
+
+    subgraph Edge["Edge and Discovery"]
+        direction LR
+        GW[API Gateway]
+        EU[Eureka Server]
+        ADM[Admin Server]
+        DISC[Service Discovery<br/>for all microservices]
+    end
+
+    subgraph Core["Operational Services"]
+        direction LR
+        AUTH[Auth Service]
+        PROD[Product Service]
+        WH[Warehouse Service]
+        SUP[Supplier Service]
+        PO[Purchase Order Service]
+        PAY[Payment Service]
+    end
+
+    subgraph Async["Projection Services"]
+        direction LR
+        SM[Stock Movement Service]
+        ALT[Alert Service]
+        REP[Report Service]
+    end
+
+    subgraph Data["Datastores and Messaging"]
+        direction LR
+        OPDB[(Operational Service DBs)]
+        PROJDB[(Projection Service DBs)]
+        REDIS[(Redis)]
+        KAFKA[(Kafka)]
+    end
+
+    subgraph External["External Integrations"]
+        direction LR
+        RZP[Razorpay]
+        GOOGLE[Google OAuth2]
+        MAIL[SMTP / Email]
+    end
+
+    FE --> GW
+
+    GW --> AUTH
+    GW --> PROD
+    GW --> WH
+    GW --> SUP
+    GW --> PO
+    GW --> PAY
+    GW --> SM
+    GW --> ALT
+    GW --> REP
+
+    GW -. discovery .-> DISC
+    ADM -. monitor .-> EU
+    DISC -. registers/discovers .-> EU
+
+    AUTH --> OPDB
+    PROD --> OPDB
+    WH --> OPDB
+    SUP --> OPDB
+    PO --> OPDB
+    PAY --> OPDB
+    SM --> PROJDB
+    ALT --> PROJDB
+    REP --> PROJDB
+    AUTH --> REDIS
+
+    WH --> KAFKA
+    PO --> KAFKA
+    PAY --> KAFKA
+
+    KAFKA --> SM
+    KAFKA --> ALT
+    KAFKA --> REP
+    KAFKA --> PROD
+
+    PO -->|Feign| SUP
+    PO -->|Feign| WH
+    SUP -->|Feign| PO
+    PAY -->|Feign| PO
+    WH -->|Feign| PROD
+    SM -->|Feign| PROD
+    SM -->|Feign| WH
+    SM -->|Feign| PO
+    SM -->|Feign| PAY
+
+    AUTH --> GOOGLE
+    AUTH --> MAIL
+    SUP --> MAIL
+    PAY --> RZP
