@@ -1,0 +1,233 @@
+@startuml
+entity "users" as users {
+  * id : BINARY(16) <<PK>>
+  --
+  email : VARCHAR(255) <<UK>>
+  password_hash : VARCHAR(60)
+  full_name : VARCHAR(100)
+  role : VARCHAR(20)
+  enabled : BOOLEAN
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity "refresh_tokens" as refresh_tokens {
+  * id : BIGINT <<PK>>
+  --
+  user_id : BINARY(16)
+  token_hash : VARCHAR(255)
+  expires_at : TIMESTAMP
+  revoked : BOOLEAN
+  created_at : TIMESTAMP
+}
+
+entity "password_reset_otps" as password_reset_otps {
+  * id : BIGINT <<PK>>
+  --
+  email : VARCHAR(255)
+  otp_hash : VARCHAR(64)
+  expires_at : TIMESTAMP
+  consumed_at : TIMESTAMP
+  created_at : TIMESTAMP
+}
+
+entity "oauth2_accounts" as oauth2_accounts {
+  * id : BIGINT <<PK>>
+  --
+  user_id : BINARY(16)
+  provider : VARCHAR(30)
+  provider_id : VARCHAR(255)
+  email : VARCHAR(255)
+  picture_url : VARCHAR(512)
+  created_at : TIMESTAMP
+}
+
+entity "products" as products {
+  * id : BIGINT <<PK>>
+  --
+  sku : VARCHAR(255) <<UK>>
+  name : VARCHAR(255)
+  description : TEXT
+  category : VARCHAR(255)
+  price : DOUBLE
+  cost_price : DOUBLE
+  tax_rate : DOUBLE
+  weight : DOUBLE
+  length : DOUBLE
+  width : DOUBLE
+  height : DOUBLE
+  weight_unit : VARCHAR(50)
+  dimension_unit : VARCHAR(50)
+  unit : VARCHAR(50)
+  active : BOOLEAN
+  total_stock : INT
+  allocated_stock : INT
+  reorder_level : INT
+  max_stock_level : INT
+}
+
+entity "suppliers" as suppliers {
+  * id : BIGINT <<PK>>
+  --
+  name : VARCHAR(255)
+  contact_person : VARCHAR(100)
+  contact_email : VARCHAR(255) <<UK>>
+  contact_phone : VARCHAR(20)
+  address : VARCHAR(500)
+  city : VARCHAR(100)
+  country : VARCHAR(100)
+  gstin : VARCHAR(20)
+  payment_terms : INT
+  credit_limit : DECIMAL(19,4)
+  notes : TEXT
+  category : VARCHAR(50)
+  active : BOOLEAN
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity "warehouses" as warehouses {
+  * id : BIGINT <<PK>>
+  --
+  name : VARCHAR(100) <<UK>>
+  location : VARCHAR(255)
+  city : VARCHAR(100)
+  country : VARCHAR(100)
+  active : BOOLEAN
+  total_storage_capacity : INT
+  current_capacity_utilization : INT
+  manager_name : VARCHAR(100)
+  contact_phone : VARCHAR(50)
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity "stock_levels" as stock_levels {
+  * id : BIGINT <<PK>>
+  --
+  warehouse_id : BIGINT <<FK>>
+  product_id : BIGINT
+  product_name : VARCHAR(255)
+  sku : VARCHAR(100)
+  aisle : VARCHAR(50)
+  rack : VARCHAR(50)
+  bin : VARCHAR(50)
+  batch_number : VARCHAR(100)
+  expiry_date : TIMESTAMP
+  quantity : INT
+  reserved_qty : INT
+  reorder_point : INT
+  max_capacity : INT
+  version : INT
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity "purchase_orders" as purchase_orders {
+  * id : BIGINT <<PK>>
+  --
+  version : BIGINT
+  order_number : VARCHAR(30) <<UK>>
+  supplier_id : BIGINT
+  supplier_name : VARCHAR(255)
+  warehouse_id : BIGINT
+  status : VARCHAR(25)
+  total_amount : DECIMAL(19,4)
+  notes : TEXT
+  created_by : VARCHAR(36)
+  approved_by : VARCHAR(36)
+  cancelled_by : VARCHAR(36)
+  cancel_reason : VARCHAR(500)
+  expected_date : DATE
+  received_at : TIMESTAMP
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity "purchase_order_lines" as purchase_order_lines {
+  * id : BIGINT <<PK>>
+  --
+  version : BIGINT
+  purchase_order_id : BIGINT <<FK>>
+  product_id : BIGINT
+  product_name : VARCHAR(255)
+  product_sku : VARCHAR(100)
+  ordered_qty : INT
+  received_qty : INT
+  unit_price : DECIMAL(19,4)
+  line_total : DECIMAL(19,4)
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity "invoices" as invoices {
+  * id : BIGINT <<PK>>
+  --
+  invoice_number : VARCHAR(255) <<UK>>
+  po_id : BIGINT <<FK>>
+  supplier_id : BIGINT
+  supplier_name : VARCHAR(255)
+  amount : DECIMAL(19,4)
+  due_date : DATE
+  status : VARCHAR(25)
+  notes : TEXT
+  created_at : TIMESTAMP
+}
+
+entity "payments" as payments {
+  * id : BIGINT <<PK>>
+  --
+  transaction_id : VARCHAR(255) <<UK>>
+  invoice_number : VARCHAR(255)
+  amount : DECIMAL(19,4)
+  payment_method : VARCHAR(100)
+  status : VARCHAR(25)
+  reference_notes : VARCHAR(255)
+  processed_by : VARCHAR(255)
+  created_at : TIMESTAMP
+}
+
+entity "stock_movements" as stock_movements {
+  * id : BIGINT <<PK>>
+  --
+  event_id : VARCHAR(36) <<UK>>
+  product_id : BIGINT
+  product_name : VARCHAR(255)
+  warehouse_id : BIGINT
+  warehouse_name : VARCHAR(255)
+  movement_type : VARCHAR(50)
+  quantity_delta : INT
+  quantity_after : INT
+  reference_id : VARCHAR(36)
+  reference_type : VARCHAR(50)
+  notes : VARCHAR(500)
+  occurred_at : TIMESTAMP
+  recorded_at : TIMESTAMP
+}
+
+entity "alerts" as alerts {
+  * id : BIGINT <<PK>>
+  --
+  event_id : VARCHAR(100) <<UK>>
+  user_id : VARCHAR(36)
+  title : VARCHAR(255)
+  message : TEXT
+  type : VARCHAR(50)
+  is_read : BOOLEAN
+  created_at : TIMESTAMP
+}
+
+entity "reports" as reports {
+  * id : BIGINT <<PK>>
+  --
+  report_name : VARCHAR(255)
+  data_json : JSON
+  generated_at : TIMESTAMP
+}
+
+users ||--o{ refresh_tokens
+users ||--o{ oauth2_accounts
+warehouses ||--o{ stock_levels
+purchase_orders ||--o{ purchase_order_lines
+purchase_orders ||--o{ invoices
+@enduml
