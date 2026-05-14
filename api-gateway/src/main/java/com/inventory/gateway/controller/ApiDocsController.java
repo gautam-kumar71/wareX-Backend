@@ -2,10 +2,12 @@ package com.inventory.gateway.controller;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.net.URI;
 import java.util.List;
 
 @RestController
@@ -22,8 +24,8 @@ public class ApiDocsController {
     private String swaggerPath;
 
     @GetMapping("/services")
-    public ResponseEntity<DocsCatalogResponse> getServiceDocs() {
-        String gatewayUrl = trimTrailingSlash(gatewayBaseUrl);
+    public ResponseEntity<DocsCatalogResponse> getServiceDocs(ServerHttpRequest request) {
+        String gatewayUrl = resolveGatewayUrl(request);
         String normalizedSwaggerPath = swaggerPath.startsWith(PATH_DELIMITER)
                 ? swaggerPath
                 : PATH_DELIMITER + swaggerPath;
@@ -61,6 +63,77 @@ public class ApiDocsController {
                 gatewayOpenApiUrl,
                 ""
         );
+    }
+
+    private String resolveGatewayUrl(ServerHttpRequest request) {
+        if (request != null) {
+            String forwardedProto = firstHeaderValue(request, "X-Forwarded-Proto");
+            String forwardedHost = firstHeaderValue(request, "X-Forwarded-Host");
+            String forwardedPort = firstHeaderValue(request, "X-Forwarded-Port");
+
+            if (hasText(forwardedProto) && hasText(forwardedHost)) {
+                return trimTrailingSlash(buildUrl(forwardedProto, forwardedHost, forwardedPort));
+            }
+
+            URI requestUri = request.getURI();
+            if (hasText(requestUri.getScheme()) && hasText(requestUri.getHost())) {
+                return trimTrailingSlash(buildUrl(requestUri.getScheme(), requestUri.getHost(), requestUri.getPort()));
+            }
+        }
+
+        return trimTrailingSlash(gatewayBaseUrl);
+    }
+
+    private String firstHeaderValue(ServerHttpRequest request, String headerName) {
+        String headerValue = request.getHeaders().getFirst(headerName);
+        if (!hasText(headerValue)) {
+            return "";
+        }
+
+        return headerValue.split(",")[0].trim();
+    }
+
+    private String buildUrl(String scheme, String host, String port) {
+        String normalizedHost = host.trim();
+        if (normalizedHost.contains("://")) {
+            normalizedHost = normalizedHost.substring(normalizedHost.indexOf("://") + 3);
+        }
+
+        Integer parsedPort = parsePort(port);
+        if (parsedPort != null && !normalizedHost.contains(":") && !isDefaultPort(scheme, parsedPort)) {
+            normalizedHost = normalizedHost + ":" + parsedPort;
+        }
+
+        return scheme.trim() + "://" + normalizedHost;
+    }
+
+    private String buildUrl(String scheme, String host, int port) {
+        if (port <= 0 || isDefaultPort(scheme, port)) {
+            return scheme + "://" + host;
+        }
+
+        return scheme + "://" + host + ":" + port;
+    }
+
+    private boolean isDefaultPort(String scheme, int port) {
+        return ("http".equalsIgnoreCase(scheme) && port == 80)
+                || ("https".equalsIgnoreCase(scheme) && port == 443);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private Integer parsePort(String value) {
+        if (!hasText(value)) {
+            return null;
+        }
+
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private String trimTrailingSlash(String value) {
