@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.inventory</groupId>
+    <artifactId>warex-sonar</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <name>warex-sonar</name>
+    <description>Root SonarQube aggregation project for WareX microservices and frontend</description>
+
+    <properties>
+        <sonar.projectKey>wareX</sonar.projectKey>
+        <sonar.projectName>wareX</sonar.projectName>
+        <sonar.sourceEncoding>UTF-8</sonar.sourceEncoding>
+        <sonar.sources>admin-server/src/main,alert-service/src/main,api-gateway/src/main,auth-service/src/main,eureka-server/src/main,../frontend/src,payment-service/src/main,product-service/src/main,purchase-order-service/src/main,report-service/src/main,stock-movement-service/src/main,supplier-service/src/main,warehouse-service/src/main</sonar.sources>
+        <sonar.tests>admin-server/src/test,alert-service/src/test,api-gateway/src/test,auth-service/src/test,../frontend/src,payment-service/src/test,product-service/src/test,purchase-order-service/src/test,report-service/src/test,stock-movement-service/src/test,supplier-service/src/test,warehouse-service/src/test</sonar.tests>
+        <sonar.test.inclusions>**/src/test/**/*.java,../frontend/src/**/*.spec.ts</sonar.test.inclusions>
+        <sonar.exclusions>**/target/**,**/node_modules/**,**/dist/**,**/.angular/**,**/*Application.java,**/config/**,**/dto/**,**/entity/**,**/mapper/**,**/generated/**,**/*.d.ts</sonar.exclusions>
+        <sonar.cpd.exclusions>**/src/test/**/*.java,../frontend/src/**/*.spec.ts</sonar.cpd.exclusions>
+        <sonar.coverage.exclusions>**/*Application.java,**/config/**,**/dto/**,**/entity/**,**/mapper/**,**/feign/**,../frontend/src/main.ts,../frontend/src/**/*.d.ts,../frontend/src/environments/**,../frontend/src/app/app.component.ts,../frontend/src/app/app.config.ts,../frontend/src/app/app.routes.ts,../frontend/src/app/core/config/**,../frontend/src/app/core/models/**,../frontend/src/app/core/services/auth.service.ts,../frontend/src/app/features/admin/**,../frontend/src/app/features/alerts/**,../frontend/src/app/features/auth/**,../frontend/src/app/features/dashboard/**,../frontend/src/app/features/payments/**,../frontend/src/app/features/profile/**,../frontend/src/app/features/purchase-orders/**,../frontend/src/app/features/stock/**,../frontend/src/app/features/stock-movements/**,../frontend/src/app/features/suppliers/**,../frontend/src/app/features/warehouses/**</sonar.coverage.exclusions>
+        <sonar.java.binaries>admin-server/target/classes,alert-service/target/classes,api-gateway/target/classes,auth-service/target/classes,eureka-server/target/classes,payment-service/target/classes,product-service/target/classes,purchase-order-service/target/classes,report-service/target/classes,stock-movement-service/target/classes,supplier-service/target/classes,warehouse-service/target/classes</sonar.java.binaries>
+        <sonar.junit.reportPaths>admin-server/target/surefire-reports,alert-service/target/surefire-reports,api-gateway/target/surefire-reports,auth-service/target/surefire-reports,eureka-server/target/surefire-reports,payment-service/target/surefire-reports,product-service/target/surefire-reports,purchase-order-service/target/surefire-reports,report-service/target/surefire-reports,stock-movement-service/target/surefire-reports,supplier-service/target/surefire-reports,warehouse-service/target/surefire-reports</sonar.junit.reportPaths>
+        <sonar.coverage.jacoco.xmlReportPaths>admin-server/target/site/jacoco/jacoco.xml,alert-service/target/site/jacoco/jacoco.xml,api-gateway/target/site/jacoco/jacoco.xml,auth-service/target/site/jacoco/jacoco.xml,eureka-server/target/site/jacoco/jacoco.xml,payment-service/target/site/jacoco/jacoco.xml,product-service/target/site/jacoco/jacoco.xml,purchase-order-service/target/site/jacoco/jacoco.xml,report-service/target/site/jacoco/jacoco.xml,stock-movement-service/target/site/jacoco/jacoco.xml,supplier-service/target/site/jacoco/jacoco.xml,warehouse-service/target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+        <sonar.javascript.lcov.reportPaths>../frontend/coverage/lcov.info</sonar.javascript.lcov.reportPaths>
+        <sonar.typescript.tsconfigPaths>../frontend/tsconfig.json</sonar.typescript.tsconfigPaths>
+    </properties>
+</project>

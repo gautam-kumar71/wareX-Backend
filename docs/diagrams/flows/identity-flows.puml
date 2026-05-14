@@ -1,0 +1,91 @@
+@startuml
+title Identity and Account Flows
+
+actor User
+participant Frontend
+participant AuthController
+participant OAuth2Controller as "OAuth2AuthController"
+participant AuthService
+participant OAuth2Service as "OAuth2AuthService"
+participant PasswordResetService
+database UserRepo
+database OAuth2AccountRepo
+database RefreshTokenRepo
+database OtpRepo as "PasswordResetOtpRepository"
+participant JwtProvider
+participant Google as "Google OAuth2"
+participant MailService as "AuthMailService"
+
+== Register / Login ==
+User -> Frontend : Register or login
+Frontend -> AuthController : POST /api/v1/auth/register|login
+AuthController -> AuthService : register(req) / login(req)
+AuthService -> UserRepo : save/find user
+UserRepo --> AuthService : user
+AuthService -> JwtProvider : generateAccessToken(user)
+AuthService -> JwtProvider : generateRefreshToken()
+AuthService -> RefreshTokenRepo : save refresh token hash
+AuthService --> AuthController : AuthResponse
+AuthController --> Frontend : access + refresh token
+
+== Refresh Token ==
+Frontend -> AuthController : POST /api/v1/auth/refresh
+AuthController -> AuthService : refresh(req)
+AuthService -> RefreshTokenRepo : validate token hash
+AuthService -> RefreshTokenRepo : revoke old token
+AuthService -> JwtProvider : generate new token pair
+AuthService -> RefreshTokenRepo : save new refresh token hash
+AuthService --> AuthController : AuthResponse
+AuthController --> Frontend : rotated tokens
+
+== Google OAuth2 Login ==
+User -> Frontend : Click Google sign-in
+Frontend -> Google : request identity token
+Google --> Frontend : Google ID token
+Frontend -> OAuth2Controller : POST /api/v1/auth/oauth2/google
+OAuth2Controller -> OAuth2Service : authenticateGoogle(token)
+OAuth2Service -> Google : verify token
+Google --> OAuth2Service : profile + claims
+OAuth2Service -> OAuth2AccountRepo : find provider link
+alt Existing OAuth2 account
+  OAuth2AccountRepo --> OAuth2Service : existing link
+  OAuth2Service -> UserRepo : load user
+else First OAuth2 login
+  OAuth2AccountRepo --> OAuth2Service : not found
+  OAuth2Service -> UserRepo : find by email or create user
+  OAuth2Service -> OAuth2AccountRepo : save oauth2 account link
+end
+OAuth2Service -> AuthService : buildTokensForUser(user)
+AuthService -> JwtProvider : generate access token
+AuthService -> JwtProvider : generate refresh token
+AuthService -> RefreshTokenRepo : save refresh token hash
+AuthService --> OAuth2Service : AuthResponse
+OAuth2Service --> OAuth2Controller : AuthResponse
+OAuth2Controller --> Frontend : access + refresh token
+
+== Password Reset ==
+User -> Frontend : Forgot password
+Frontend -> AuthController : POST /api/v1/auth/forgot-password
+AuthController -> PasswordResetService : requestOtp(email)
+PasswordResetService -> UserRepo : lookup eligible account
+alt Eligible account exists
+  UserRepo --> PasswordResetService : user found
+  PasswordResetService -> OtpRepo : save OTP hash + expiry
+  PasswordResetService -> MailService : send OTP email
+  MailService --> PasswordResetService : accepted
+else No eligible account
+  UserRepo --> PasswordResetService : none
+end
+PasswordResetService --> AuthController : generic success
+AuthController --> Frontend : "If eligible, OTP sent"
+
+User -> Frontend : Submit OTP + new password
+Frontend -> AuthController : POST /api/v1/auth/reset-password
+AuthController -> PasswordResetService : resetPassword(req)
+PasswordResetService -> OtpRepo : load valid OTP
+PasswordResetService -> PasswordResetService : verify hash + expiry
+PasswordResetService -> UserRepo : update password hash
+PasswordResetService -> OtpRepo : mark consumed
+PasswordResetService --> AuthController : success
+AuthController --> Frontend : password reset complete
+@enduml

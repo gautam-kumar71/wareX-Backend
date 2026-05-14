@@ -1,0 +1,299 @@
+@startuml
+skinparam classAttributeIconSize 0
+hide empty methods
+
+package "Auth Service" {
+  enum Role {
+    ADMIN
+    INVENTORY_MANAGER
+    PURCHASE_OFFICER
+    WAREHOUSE_STAFF
+  }
+
+  class User {
+    +id: UUID
+    +email: String
+    +passwordHash: String
+    +fullName: String
+    +role: Role
+    +enabled: boolean
+    +createdAt: Instant
+    +updatedAt: Instant
+  }
+
+  class RefreshToken {
+    +id: Long
+    +userId: UUID
+    +tokenHash: String
+    +expiresAt: Instant
+    +revoked: boolean
+    +createdAt: Instant
+  }
+
+  class PasswordResetOtp {
+    +id: Long
+    +email: String
+    +otpHash: String
+    +expiresAt: Instant
+    +consumedAt: Instant
+    +createdAt: Instant
+  }
+
+  class OAuth2Account {
+    +id: Long
+    +userId: UUID
+    +provider: String
+    +providerId: String
+    +email: String
+    +pictureUrl: String
+    +createdAt: Instant
+  }
+
+  class AuthService {
+    +register(req): AuthResponse
+    +login(req): AuthResponse
+    +refresh(req): AuthResponse
+    +logout(token, userId): void
+    +getMe(userId): UserInfoResponse
+    +disableUser(userId): void
+    +enableUser(userId): void
+    +updateUserRole(userId, role): void
+  }
+}
+
+package "Product Service" {
+  class Product {
+    +id: Long
+    +sku: String
+    +name: String
+    +description: String
+    +category: String
+    +price: Double
+    +costPrice: Double
+    +taxRate: Double
+    +weight: Double
+    +length: Double
+    +width: Double
+    +height: Double
+    +weightUnit: String
+    +dimensionUnit: String
+    +unit: String
+    +active: boolean
+    +totalStock: Integer
+    +allocatedStock: Integer
+    +reorderLevel: Integer
+    +maxStockLevel: Integer
+  }
+}
+
+package "Supplier Service" {
+  class Supplier {
+    +id: Long
+    +name: String
+    +contactPerson: String
+    +contactEmail: String
+    +contactPhone: String
+    +address: String
+    +city: String
+    +country: String
+    +gstin: String
+    +paymentTerms: Integer
+    +creditLimit: BigDecimal
+    +notes: String
+    +category: String
+    +active: Boolean
+    +createdAt: Instant
+    +updatedAt: Instant
+  }
+}
+
+package "Warehouse Service" {
+  class Warehouse {
+    +id: Long
+    +name: String
+    +location: String
+    +city: String
+    +country: String
+    +active: boolean
+    +totalStorageCapacity: Integer
+    +currentCapacityUtilization: Integer
+    +managerName: String
+    +contactPhone: String
+    +createdAt: Instant
+    +updatedAt: Instant
+  }
+
+  class StockLevel {
+    +id: Long
+    +productId: Long
+    +productName: String
+    +sku: String
+    +aisle: String
+    +rack: String
+    +bin: String
+    +batchNumber: String
+    +expiryDate: Instant
+    +quantity: int
+    +reservedQty: int
+    +reorderPoint: int
+    +maxCapacity: Integer
+    +version: int
+    +createdAt: Instant
+    +updatedAt: Instant
+    +getAvailableQuantity(): int
+    +isLowStock(): boolean
+    +isOverstock(): boolean
+  }
+
+  class StockService {
+    +initializeStock(...): StockLevelResponse
+    +adjustStock(...): StockLevelResponse
+    +receiveStock(...): StockLevelResponse
+    +transferStock(req): void
+    +reserveStock(...): StockLevelResponse
+    +releaseReservation(...): StockLevelResponse
+  }
+}
+
+package "Purchase Order Service" {
+  enum PurchaseOrderStatus {
+    DRAFT
+    SUBMITTED
+    APPROVED
+    PARTIALLY_RECEIVED
+    RECEIVED
+    CANCELLED
+  }
+
+  class PurchaseOrder {
+    +id: Long
+    +version: Long
+    +orderNumber: String
+    +supplierId: Long
+    +supplierName: String
+    +warehouseId: Long
+    +status: PurchaseOrderStatus
+    +totalAmount: BigDecimal
+    +notes: String
+    +createdBy: String
+    +approvedBy: String
+    +cancelledBy: String
+    +cancelReason: String
+    +expectedDate: LocalDate
+    +receivedAt: Instant
+    +createdAt: Instant
+    +updatedAt: Instant
+    +addLine(line): void
+    +recalculateTotal(): void
+    +isFullyReceived(): boolean
+    +isPartiallyReceived(): boolean
+  }
+
+  class PurchaseOrderLine {
+    +id: Long
+    +version: Long
+    +productId: Long
+    +productName: String
+    +productSku: String
+    +orderedQty: int
+    +receivedQty: int
+    +unitPrice: BigDecimal
+    +lineTotal: BigDecimal
+    +createdAt: Instant
+    +updatedAt: Instant
+    +recalculateLineTotal(): void
+    +isFullyReceived(): boolean
+    +getRemainingQty(): int
+  }
+
+  class Invoice {
+    +id: Long
+    +invoiceNumber: String
+    +supplierId: Long
+    +supplierName: String
+    +amount: BigDecimal
+    +dueDate: LocalDate
+    +status: InvoiceStatus
+    +notes: String
+    +createdAt: Instant
+  }
+
+  class PurchaseOrderService {
+    +createPurchaseOrder(req, createdBy): PurchaseOrderResponse
+    +submitOrder(id, userId): PurchaseOrderResponse
+    +approveOrder(id, approver): PurchaseOrderResponse
+    +receiveStock(id, req, userId): PurchaseOrderResponse
+    +cancelOrder(id, reason, userId): PurchaseOrderResponse
+  }
+}
+
+package "Payment Service" {
+  class Payment {
+    +id: Long
+    +transactionId: String
+    +invoiceNumber: String
+    +amount: BigDecimal
+    +paymentMethod: String
+    +status: PaymentStatus
+    +referenceNotes: String
+    +processedBy: String
+    +createdAt: Instant
+  }
+
+  class PaymentService {
+    +createRazorpayOrder(req): RazorpayOrderResponse
+    +verifyPayment(req, username): PaymentResponse
+    +processPayment(req, username): PaymentResponse
+  }
+}
+
+package "Audit / Notification / Reporting" {
+  class StockMovement {
+    +id: Long
+    +eventId: String
+    +productId: Long
+    +productName: String
+    +warehouseId: Long
+    +warehouseName: String
+    +movementType: MovementType
+    +quantityDelta: int
+    +quantityAfter: int
+    +referenceId: String
+    +referenceType: String
+    +notes: String
+    +occurredAt: Instant
+    +recordedAt: Instant
+  }
+
+  class Alert {
+    +id: Long
+    +eventId: String
+    +userId: String
+    +title: String
+    +message: String
+    +type: String
+    +isRead: boolean
+    +createdAt: Instant
+  }
+
+  class ReportData {
+    +id: Long
+    +reportName: String
+    +dataJson: String
+    +generatedAt: Instant
+  }
+}
+
+User "1" o-- "0..*" RefreshToken
+User "1" o-- "0..*" OAuth2Account
+Warehouse "1" *-- "0..*" StockLevel
+PurchaseOrder "1" *-- "1..*" PurchaseOrderLine
+PurchaseOrder "1" o-- "0..*" Invoice
+
+PurchaseOrderService ..> Supplier
+PurchaseOrderService ..> Warehouse
+PurchaseOrderService ..> StockService
+StockService ..> Product
+PaymentService ..> Invoice
+StockService ..> StockMovement
+@enduml
