@@ -1,0 +1,105 @@
+@startuml
+title Core Domain ERD
+
+entity "users" as users {
+  * id : UUID <<PK>>
+  --
+  email : String <<UK>>
+  full_name : String
+  role : Role
+  enabled : Boolean
+}
+
+entity "products" as products {
+  * id : Long <<PK>>
+  --
+  sku : String <<UK>>
+  name : String
+  category : String
+  price : Double
+  active : Boolean
+}
+
+entity "suppliers" as suppliers {
+  * id : Long <<PK>>
+  --
+  name : String
+  contact_email : String <<UK>>
+  category : String
+  active : Boolean
+}
+
+entity "warehouses" as warehouses {
+  * id : Long <<PK>>
+  --
+  name : String <<UK>>
+  city : String
+  active : Boolean
+  total_storage_capacity : Int
+}
+
+entity "stock_levels" as stock_levels {
+  * id : Long <<PK>>
+  --
+  warehouse_id : Long <<FK>>
+  product_id : Long
+  quantity : Int
+  reserved_qty : Int
+  reorder_point : Int
+  max_capacity : Int
+  version : Int
+}
+
+entity "purchase_orders" as purchase_orders {
+  * id : Long <<PK>>
+  --
+  order_number : String <<UK>>
+  supplier_id : Long
+  warehouse_id : Long
+  status : String
+  total_amount : Decimal
+  created_by : String
+}
+
+entity "purchase_order_lines" as purchase_order_lines {
+  * id : Long <<PK>>
+  --
+  purchase_order_id : Long <<FK>>
+  product_id : Long
+  ordered_qty : Int
+  received_qty : Int
+  unit_price : Decimal
+}
+
+entity "invoices" as invoices {
+  * id : Long <<PK>>
+  --
+  invoice_number : String <<UK>>
+  po_id : Long <<FK>>
+  amount : Decimal
+  status : String
+}
+
+entity "payments" as payments {
+  * id : Long <<PK>>
+  --
+  transaction_id : String <<UK>>
+  invoice_number : String
+  amount : Decimal
+  status : String
+}
+
+entity "stock_movements" as stock_movements {
+  * id : Long <<PK>>
+  --
+  event_id : String <<UK>>
+  product_id : Long
+  warehouse_id : Long
+  movement_type : String
+  quantity_delta : Int
+}
+
+warehouses ||--o{ stock_levels
+purchase_orders ||--o{ purchase_order_lines
+purchase_orders ||--o{ invoices
+@enduml

@@ -1,0 +1,111 @@
+server:
+  port: ${SERVER_PORT:8086}
+
+spring:
+  application:
+    name: stock-movement-service
+  config:
+    import: optional:file:.env[.properties]
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3307}/${DB_NAME:stock_movement_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8
+    username: ${DB_USERNAME:inventory_user}
+    password: ${DB_PASSWORD:inventory_pass}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: stock-movement-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.inventory.*"
+        spring.json.value.default.type: com.inventory.stockmovement.kafka.StockEventPayload
+        session.timeout.ms: 45000
+        heartbeat.interval.ms: 10000
+        max.poll.interval.ms: 600000
+        max.poll.records: 50
+        isolation.level: read_committed
+      enable-auto-commit: false  # manual ack — we control exactly when offset is committed
+
+eureka:
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    metadata-map:
+      management.context-path: /actuator
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://${EUREKA_USERNAME:eureka}:${EUREKA_PASSWORD:eureka-secret}@${EUREKA_HOST:localhost}:${EUREKA_PORT:8761}/eureka/
+
+jwt:
+  secret: ${JWT_SECRET}
+
+app:
+  services:
+    product-service:
+      url: ${PRODUCT_SERVICE_URL:http://product-service:8083}
+    purchase-order-service:
+      url: ${PURCHASE_ORDER_SERVICE_URL:http://purchase-order-service:8084}
+    payment-service:
+      url: ${PAYMENT_SERVICE_URL:http://payment-service:8085}
+    warehouse-service:
+      url: ${WAREHOUSE_SERVICE_URL:http://warehouse-service:8082}
+
+kafka:
+  topics:
+    stock-events: stock-events
+    stock-events-dlt: stock-events.DLT
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.inventory.stockmovement: DEBUG
+    org.springframework.kafka: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

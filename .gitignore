@@ -1,0 +1,12 @@
+target/
+logs/
+build_error.log
+.env
+.env.*
+!.env.ec2.example
+.idea/
+.classpath
+.factorypath
+.project
+.settings/
+HELP.md
