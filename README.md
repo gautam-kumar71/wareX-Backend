@@ -19,6 +19,10 @@ This repository contains the Spring Boot microservices and backend deployment as
 
 `GHCR_TOKEN` should be a GitHub personal access token with package read access for deployment on EC2.
 
+`BACKEND_EC2_ENV_FILE` should use `https://` values for both `FRONTEND_PUBLIC_BASE_URL` and `BACKEND_PUBLIC_BASE_URL` when the frontend is served through Caddy.
+
+The `api-gateway` service remains published on host port `8080` so the frontend Caddy proxy on the same EC2 host can forward `/api` and docs traffic to it.
+
 ## Required EC2 preparation
 
 Run `ec2-bootstrap.sh` once on the backend EC2 instance, then place the deployment files under `/opt/warex-backend`.
